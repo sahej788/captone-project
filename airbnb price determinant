@@ -1,0 +1,471 @@
+# Import Libraries
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import zipfile
+import warnings 
+
+warnings.filterwarnings('ignore')
+
+# Read Dataset
+
+df=pd.read_csv("amsterdam_weekdays.csv")
+
+df1=pd.read_csv("amsterdam_weekends.csv")
+
+df2=pd.read_csv("athens_weekdays.csv")
+
+df3=pd.read_csv("athens_weekends.csv")
+
+df4=pd.read_csv("barcelona_weekdays.csv")
+
+df5=pd.read_csv("barcelona_weekends.csv")
+
+df6=pd.read_csv("berlin_weekdays.csv")
+
+df7=pd.read_csv("berlin_weekends.csv")
+
+df8=pd.read_csv("budapest_weekdays.csv")
+
+df9=pd.read_csv("budapest_weekends.csv")
+
+df10=pd.read_csv("lisbon_weekdays.csv")
+
+df11=pd.read_csv("lisbon_weekends.csv")
+
+df12=pd.read_csv("london_weekdays.csv")
+
+df13=pd.read_csv("paris_weekdays.csv")
+
+df14=pd.read_csv("paris_weekends.csv")
+
+df15=pd.read_csv("rome_weekdays.csv")
+
+df16=pd.read_csv("rome_weekends.csv")
+
+df17=pd.read_csv("vienna_weekdays.csv")
+
+df18=pd.read_csv("vienna_weekends.csv")
+
+df19=pd.read_csv("london_weekends.csv")
+
+a=pd.concat([df,df1,df2,df3,df4,df5,df6,df7,df8,df9,df10,df11,df12,df13,df14,df15,df16,df17,df18,df19])
+
+# Now look the Dataset,its shape ,columns,dtypes 
+
+a
+
+# check null values if any
+
+def fetch_count_and_percent_of_null(data):  # data is df
+    nv = data.isnull().sum()  # nv = null values
+    nv = nv[nv>0]
+    res = pd.DataFrame({'Feature':nv.index,'Count_Null':nv.values,
+                       'Percent_Null':(nv.values/data.shape[0])*100})
+    res = res.sort_values('Percent_Null',ascending=False)
+    return res
+
+fetch_count_and_percent_of_null(a)
+
+a.shape
+
+df.duplicated().sum()
+
+a.columns
+
+# Separate The Numerical and Categorical features
+
+num_cols=df.dtypes[df.dtypes!=object].index
+cat_cols=df.dtypes[df.dtypes==object].index
+print(num_cols)
+print(cat_cols)
+
+# Selecting Columns For EDA
+
+for i in a.columns:
+    print(f'Feature {i} has a unique count of {a[i].nunique()}')
+
+# EDA (Exploratory Data Analysis)
+
+## Univariate Analysis
+
+### Histogram
+
+col=['realSum','metro_dist','dist']
+plt.figure(figsize=(10,7))
+for i in range(len(col)):
+    plt.subplot(2,2,i+1)
+    sns.histplot(a[col[i]],kde=True)
+    plt.title(f'Histogram for {col[i]}')
+    plt.tight_layout()
+plt.show()
+
+## Inference:
+1. realSum, metro_dist, dist is left skewed
+
+### Boxplot
+
+col = ['realSum','metro_dist','dist']
+plt.figure(figsize=(10,7))
+for i in range(len(col)):
+    plt.subplot(2,2,i+1)
+    sns.boxplot(x=a[col[i]])
+    plt.title(f'Boxplot for {col[i]}')
+    plt.tight_layout()
+plt.show()
+
+
+## Inference:
+1.  metro_dist, dist have right outliers
+2. realSum contains left outliers
+
+## Bivariate Analysis
+
+### Countplot
+
+col=['room_shared','room_private','person_capacity','host_is_superhost', 'multi', 'biz',
+       'cleanliness_rating']
+plt.figure(figsize=(10,7))
+for i in range(len(col)):
+    plt.subplot(4,2,i+1)
+    sns.countplot(x=a[col[i]])
+    plt.title(f'Countplot for {col[i]}')
+    plt.tight_layout()
+plt.show()
+
+## Inference:
+1. room shared is mostly false
+2. room private is almost false
+3. person capacity is mostly two
+4. cleanliness rating is mostly 10
+5.biz is mostly is 0
+
+## Scatter plot WRT to Target
+
+col = ['realSum','metro_dist','dist']
+plt.figure(figsize=(10,7))
+for i in range(len(col)):
+    plt.subplot(2,2,i+1)
+    sns.scatterplot(x=a[col[i]],y=a['realSum'])
+    plt.title(f'countplot for {col[i]} VS Price ')
+    plt.tight_layout()
+plt.show()
+
+## Correlation
+
+corr=df[num_cols].corr()
+plt.figure(figsize=(20,12))
+sns.heatmap(corr,annot=True)
+plt.show()
+
+plt.figure(figsize=(20,12))
+sns.heatmap(corr[abs(corr)>=0.8],annot=True)
+plt.show()
+
+## Inference:
+1. attr_index are highly correlated
+2. rest_index,rest_index_norm are highly correlated
+
+def null_check(x):
+    nv=df.isnull().sum()
+    nv=nv[nv>0]
+    res=pd.DataFrame({'Features':nv.index,'Null Count':nv.values,'Null %':(nv.values/df.shape[0])*100})
+    res=res.sort_values('Null %',ascending=False)
+    return res
+
+null_check(a)
+
+a.head()
+
+a.drop(columns=["Unnamed: 0","attr_index","attr_index_norm","rest_index","rest_index_norm"],inplace=True,axis=1)
+
+### Also check the min and max and data which is inconsistent so you can impute them 
+
+b=df.describe(percentiles=[0.01,0.02,0.03,0.04,0.97,0.98,0.99]).T
+b.iloc[:,3:]
+
+## Outlier Treatment
+
+cols_left_skewed = ["Unnamed: 0","realSum","guest_satisfaction_overall","dist","rest_index","attr_index"]
+def l_o_treat(x):
+    x=x.clip(lower=x.quantile(0.01))
+    return x
+
+df[cols_left_skewed] = df[cols_left_skewed].apply(l_o_treat)
+
+cols_right_skewed = ["realSum","attr_index","attr_index_norm","rest_index","rest_index_norm"]
+def u_o_treat(x):
+    x=x.clip(upper=x.quantile(0.99))
+    return x
+
+df[cols_right_skewed] = df[cols_right_skewed].apply(u_o_treat)
+
+b=df.describe(percentiles=[0.01,0.02,0.03,0.04,0.97,0.98,0.99]).T
+b.iloc[:,3:]
+
+## Label Encoding
+
+a.head()
+
+print(cat_cols)
+
+a["host_is_superhost"]=a["host_is_superhost"].replace({"False":"0","True":"1"}).astype(int)
+
+
+a["room_shared"]=a["room_shared"].replace({"False":"0","True":"1"}).astype(int)
+
+a["room_private"]=a["room_private"].replace({"False":"0","True":"1"}).astype(int)
+
+a.head()
+
+for i in a.columns :
+    print(i,a[i].nunique())
+
+a.isnull().sum()
+
+a_dum=pd.get_dummies(data=a,columns=cat_cols,drop_first=True)
+print(a_dum.shape)
+print(a_dum.columns)
+
+## Select X and Y (Dependent and Target Variable)
+
+x=a_dum.drop(['realSum'],axis=1)
+y=a_dum['realSum']
+
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+vif=pd.DataFrame()
+vif['Features']=x.columns 
+vif['VIF']=[variance_inflation_factor(x.values,i) for i in range(x.shape[1])]
+vif=vif.sort_values('VIF',ascending=False)
+vif
+
+## Target Variable is Normally Distributed
+
+from scipy.stats import jarque_bera
+
+test_stat,p=jarque_bera(y)
+print(p)
+if p > 0.05:
+    print("Target Variable is Normally Distributed")
+else:
+    print("Target Variable is Not Normally Distributed")
+
+y1=np.log(y)
+
+test_stat,p=jarque_bera(y1)
+print(p)
+if p > 0.05:
+    print("Target Variable is Normally Distributed")
+else:
+    print("Target Variable is Not Normally Distributed")
+
+y2=np.exp(y)
+
+test_stat,p=jarque_bera(y2)
+print(p)
+if p > 0.05:
+    print("Target Variable is Normally Distributed")
+else:
+    print("Target Variable is Not Normally Distributed")
+
+y3=1/(np.log(y))
+
+test_stat,p=jarque_bera(y3)
+print(p)
+if p > 0.05:
+    print("Target Variable is Normally Distributed")
+else:
+    print("Target Variable is Not Normally Distributed")
+
+from scipy.stats import boxcox
+
+y4,i=boxcox(y)
+
+test_stat,p=jarque_bera(y4)
+print(p)
+if p > 0.05:
+    print("Target Variable is Normally Distributed")
+else:
+    print("Target Variable is Not Normally Distributed")
+
+## OLS MODEL
+
+import statsmodels.api as sm
+
+x1 = x.copy()
+y5 = y4.copy()
+
+x1=sm.add_constant(x1)
+ols_m1=sm.OLS(y5,x1).fit()
+ols_m1.summary()
+
+print('OLS_M1')
+print(ols_m1.rsquared)
+print(ols_m1.rsquared_adj)
+
+## Homoscadesicity Check
+
+residuals = ols_m1.resid
+
+plt.scatter(ols_m1.predict(), residuals)   
+plt.axhline(0, color='red', linestyle='--')
+plt.xlabel('Fitted values')
+plt.ylabel('Residuals')
+plt.title('Residuals vs. Fitted values')
+plt.show()
+
+## Split Into Train and  Test data
+
+from sklearn.model_selection import train_test_split
+
+x_train,x_test,y_train,y_test=train_test_split(x,y,test_size=0.25,random_state=42)
+print(x_train.shape)
+print(x_test.shape)
+print(y_train.shape)
+print(y_test.shape)
+
+## Advanced Function Which calculate all models scores
+
+from sklearn.metrics import *
+
+def eval_regression(model,x_train,x_test,y_train,y_test,model_name):
+    model.fit(x_train,y_train)
+    y_pred=model.predict(x_test)
+    train_sc=model.score(x_train,y_train)
+    test_sc=model.score(x_test,y_test)
+    mse=mean_squared_error(y_test,y_pred)
+    mae=mean_absolute_error(y_test,y_pred)
+    rmse=np.sqrt(mse)
+    res=pd.DataFrame(data={'Train R2 Score':train_sc,'Test R2 Score':test_sc,'MSE':mse,'MAE':mae,'RMSE':rmse},
+                     index=[model_name])
+    return res,y_pred
+
+## Importing the models
+
+from sklearn.linear_model import LinearRegression,Ridge,Lasso,ElasticNet
+
+## Linear Regression
+
+lr1=LinearRegression()
+
+lr1_res,lr1_pred=eval_regression(lr1,x_train,x_test,y_train,y_test,'Linear Regression')
+
+lr1_res
+
+## Ridge
+
+rr1=Ridge()
+
+rr1_res,rr1_pred=eval_regression(rr1,x_train,x_test,y_train,y_test,'Ridge Regression')
+
+rr1_res
+
+## Lasso
+
+Lr1=Lasso()
+
+Lr1_res,Lr1_pred=eval_regression(Lr1,x_train,x_test,y_train,y_test,'Lasso Regression')
+
+Lr1_res
+
+## ElasticNet Regression
+
+en1=ElasticNet()
+
+en1_res,en1_pred=eval_regression(en1,x_train,x_test,y_train,y_test,'ElasticNet Regression')
+
+en1_res
+
+## concating results till now 
+
+pd.concat([lr1_res,rr1_res,Lr1_res,en1_res])
+
+## Decision Tree Regressor
+
+from sklearn.tree import DecisionTreeRegressor
+
+dt1=DecisionTreeRegressor(criterion='squared_error') 
+dt1_res,ypred_dt1 = eval_regression(dt1,x_train,x_test,y_train,y_test,'DT1(No Pruning)')
+dt1_res
+
+dt2 = DecisionTreeRegressor(criterion='squared_error',max_depth=7,min_samples_split=10) 
+dt2_res,ypred_dt2 = eval_regression(dt2,x_train,x_test,y_train,y_test,'DT2(with Pruning)')
+dt2_res
+
+## Hyperparameter Tuning
+
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+
+hparams_dt = {'criterion':['squared_error','absolute_error'],
+             'max_depth':[4,5,6,7,8],
+             'min_samples_split':[8,10,12]}
+
+## GridSearch CV
+
+dt_base = DecisionTreeRegressor()
+gs1 = GridSearchCV(dt_base,param_grid=hparams_dt, scoring='neg_mean_squared_error',cv=5)
+gs1.fit(x_train,y_train)
+
+print(gs1.best_score_)
+print(gs1.best_params_)
+print(gs1.best_estimator_)
+
+dt_gs1 = DecisionTreeRegressor(**gs1.best_params_)
+# OR
+# dt_gs1 = DecisionTreeClassifier(criterion='gini', max_depth=4, min_samples_split= 12)
+dt_gs1_res,ypred_dt_gs1 = eval_regression(dt_gs1,x_train,x_test,y_train,y_test,'DT_GS1')
+dt_gs1_res
+
+gs_res = pd.DataFrame(gs1.cv_results_)
+print(gs_res.shape)
+gs_res.head()
+
+## RandomizedSearchCV
+
+dt_base2 = DecisionTreeRegressor()
+rs1 = RandomizedSearchCV(dt_base2,param_distributions=hparams_dt,scoring='neg_mean_squared_error',cv=5)
+rs1.fit(x_train,y_train)
+
+print(rs1.best_score_)
+print(rs1.best_params_)
+
+dt_rs1 = DecisionTreeRegressor(**rs1.best_params_)
+dt_rs1_res,ypred_dt_rs1 = eval_regression(dt_rs1,x_train,x_test,y_train,y_test,'DT_RS1')
+dt_rs1_res
+
+rs_res = pd.DataFrame(rs1.cv_results_)
+print(rs_res.shape)
+rs_res.head()
+
+## RandomForest Regressor
+
+from sklearn.ensemble import RandomForestRegressor
+
+rf = RandomForestRegressor(n_estimators=80,criterion='squared_error',max_depth=12,min_samples_split=15)
+rf_res,ypred_rf = eval_regression(rf,x_train,x_test,y_train,y_test,'Random Forest[No hyperparameter]')
+rf_res
+
+## Gradient Boosting
+
+from sklearn.ensemble import GradientBoostingRegressor
+
+gb=GradientBoostingRegressor(n_estimators=500)
+
+gb_res,ypred_gb = eval_regression(gb,x_train,x_test,y_train,y_test,'GradientBoosting[No hyperparameter]')
+gb_res
+
+## XGboost Regressor
+
+from xgboost import XGBRegressor
+
+xg=XGBRegressor(n_estimators=45,learning_rate=0.5)
+
+xg_res,ypred_xg = eval_regression(xg,x_train,x_test,y_train,y_test,'XGBoost[No hyperparameter]')
+xg_res
+
+## Tabulate All Results
+
+pd.concat([lr1_res,rr1_res,Lr1_res,en1_res,dt1_res,dt2_res,dt_gs1_res,rf_res,gb_res,xg_res])
